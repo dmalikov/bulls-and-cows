@@ -45,6 +45,9 @@ namespace Digit
     show D8 = "8"
     show D9 = "9"
 
+allUnique : Eq a => List a -> Bool
+allUnique xs = length (nub xs) == length xs
+
 namespace Number
 
   data Number : Type where
@@ -53,9 +56,12 @@ namespace Number
   fromStr : String -> Maybe Number
   fromStr str with (toIntegerNat $ length str)
     | 4 = case catMaybes $ map fromChar $ unpack str of
-               num@[d1,d2,d3,d4] => Just (MkNum num)
+               num@[d1,d2,d3,d4] => if allUnique [d1,d2,d3,d4]
+                                       then Just (MkNum num)
+                                       else Nothing
                _ => Nothing
     | _ = Nothing
+
 
   Show Number where
     show (MkNum xs) = concatMap show xs
