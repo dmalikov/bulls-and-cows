@@ -74,12 +74,8 @@ Eq DigitState where
   Miss == Miss = True
   _ == _ = False
 
-data GuessResult : Type where
-  Correct : GuessResult
-  Incorrect : (bulls : Nat) -> (cows : Nat) -> GuessResult -- bulls are <= 4, cows are <= 4, cows + bulls <= 4
-
-evalGuess : (guess : Number) -> (actual : Number) -> GuessResult
-evalGuess (MkNum guess) (MkNum actual) = decide (map evalEach zip')
+evalGuess : (guess : Number) -> (actual : Number) -> Vect 4 DigitState
+evalGuess (MkNum guess) (MkNum actual) = map evalEach zip'
   where
     evalEach : (Digit, Digit, Vect 4 Digit) -> DigitState
     evalEach (d1, d2, all) =
@@ -89,10 +85,6 @@ evalGuess (MkNum guess) (MkNum actual) = decide (map evalEach zip')
             if d1 `elem` all
                then Cow
                else Miss
-
-    decide : Vect 4 DigitState -> GuessResult
-    decide (Bull :: Bull :: Bull :: Bull :: Nil) = Correct
-    decide xs = Incorrect (fst $ Vect.filter (== Bull) xs) (fst $ Vect.filter (== Cow) xs)
 
     zip' : Vect 4 (Digit, Digit, Vect 4 Digit)
     zip' = zip3 guess actual (replicate 4 actual)
@@ -132,11 +124,11 @@ gameLoop {number} = do
   input <- GetInput
   case input of
        Just (InGuess guess) => do
-         case evalGuess guess number of
-              Correct => do
+         case calc (evalGuess guess number) of
+              (4, 0) => do
                 Won
                 Exit
-              Incorrect {bulls} {cows} => do
+              (bulls, cows) => do
                 Message (show bulls ++ " bulls, " ++ show cows ++ " cows")
                 gameLoop
        Just InAdmit => do
@@ -145,6 +137,16 @@ gameLoop {number} = do
        _ => do
          Message "Invalid input"
          gameLoop
+
+ where
+
+  calc : Vect 4 DigitState -> (Integer, Integer)
+  calc = foldl f (0,0) . toList
+   where
+    f : (Integer, Integer) -> DigitState -> (Integer, Integer)
+    f (b, c) Bull = (b + 1, c)
+    f (b, c) Cow = (b, c + 1)
+    f (b, c) Miss = (b, c)
 
 data GameResult : (ty : Type) -> GameState -> Type where
   OK : (res : ty) -> GameResult ty outstate
@@ -171,9 +173,10 @@ initNumber : IO Number
 initNumber = do
   timestamp <- time
   let combs = combinations 4 [D0,D1,D2,D3,D4,D5,D6,D7,D8,D9]
-  case take 1 $ drop (fromIntegerNat (timestamp `mod` (toIntegerNat (length combs)))) combs of
-       [] => pure $ MkNum [D1,D2,D3,D4]
-       number :: _ => pure $ MkNum number
+  let idx = fromIntegerNat (timestamp `mod` (toIntegerNat (length combs)))
+  case index' idx combs of
+       Just number => pure $ MkNum number
+       Nothing => pure $ MkNum [D1,D2,D3,D4]
 
 data Fuel = Dry | More (Lazy Fuel)
 
@@ -202,6 +205,6 @@ forever = More forever
 partial
 main : IO ()
 main = do n <- initNumber
-          run forever (do Message "I've came with some number. To guess it put \"guess <num>\", to stop put \"admit\"."
+          run forever (do Message "Try to guess the number. \"guess <num>\" to guess, \"admit\" to admit."
                           gameLoop {number = n})
           pure ()
