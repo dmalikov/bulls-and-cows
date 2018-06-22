@@ -1,95 +1,13 @@
 import Data.Vect
 import System
 
+import Digit
+import Number
+import Guess
+
 %default total
 
-namespace Digit
-
-  data Digit = D0 | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | D9
-
-  Eq Digit where
-    D0 == D0 = True
-    D1 == D1 = True
-    D2 == D2 = True
-    D3 == D3 = True
-    D4 == D4 = True
-    D5 == D5 = True
-    D6 == D6 = True
-    D7 == D7 = True
-    D8 == D8 = True
-    D9 == D9 = True
-    _ == _ = False
-
-  fromChar : Char -> Maybe Digit
-  fromChar '0' = Just D0
-  fromChar '1' = Just D1
-  fromChar '2' = Just D2
-  fromChar '3' = Just D3
-  fromChar '4' = Just D4
-  fromChar '5' = Just D5
-  fromChar '6' = Just D6
-  fromChar '7' = Just D7
-  fromChar '8' = Just D8
-  fromChar '9' = Just D9
-  fromChar _ = Nothing
-
-  Show Digit where
-    show D0 = "0"
-    show D1 = "1"
-    show D2 = "2"
-    show D3 = "3"
-    show D4 = "4"
-    show D5 = "5"
-    show D6 = "6"
-    show D7 = "7"
-    show D8 = "8"
-    show D9 = "9"
-
-allUnique : Eq a => List a -> Bool
-allUnique xs = length (nub xs) == length xs
-
-namespace Number
-
-  data Number : Type where
-    MkNum : Vect 4 Digit -> Number
-
-  fromStr : String -> Maybe Number
-  fromStr str with (toIntegerNat $ length str)
-    | 4 = case catMaybes $ map fromChar $ unpack str of
-               num@[d1,d2,d3,d4] => if allUnique [d1,d2,d3,d4]
-                                       then Just (MkNum num)
-                                       else Nothing
-               _ => Nothing
-    | _ = Nothing
-
-
-  Show Number where
-    show (MkNum xs) = concatMap show xs
-
-data DigitState = Bull | Cow | Miss
-
-Eq DigitState where
-  Bull == Bull = True
-  Cow == Cow = True
-  Miss == Miss = True
-  _ == _ = False
-
-evalGuess : (guess : Number) -> (actual : Number) -> Vect 4 DigitState
-evalGuess (MkNum guess) (MkNum actual) = map evalEach zip'
-  where
-    evalEach : (Digit, Digit, Vect 4 Digit) -> DigitState
-    evalEach (d1, d2, all) =
-      if d1 == d2
-         then Bull
-         else
-            if d1 `elem` all
-               then Cow
-               else Miss
-
-    zip' : Vect 4 (Digit, Digit, Vect 4 Digit)
-    zip' = zip3 guess actual (replicate 4 actual)
-
-data Input = InGuess Number
+data Input = InGuess GuessNumber
            | InAdmit
 
 strToInput : String -> Maybe Input
@@ -101,13 +19,13 @@ strToInput str =
 
 data GameState : Type where
   NotRunning : GameState
-  Running : (number : Number) -> GameState
+  Running : SecretNumber -> GameState
 
 data GameCmd : (ty : Type) -> (prev_state : GameState) -> (new_state : GameState) -> Type where
-  Won : GameCmd () (Running number) NotRunning
-  Admitted : GameCmd () (Running number) NotRunning
+  Won : GameCmd () (Running secret) NotRunning
+  Admitted : GameCmd () (Running secret) NotRunning
   Message : String -> GameCmd () state state
-  GetInput : GameCmd (Maybe Input) (Running number) (Running number)
+  GetInput : GameCmd (Maybe Input) (Running secret) (Running secret)
 
   Pure : (res : ty) -> GameCmd ty state state
   (>>=) : GameCmd a state1 state2 -> (a -> GameCmd b state2 state3) -> GameCmd b state1 state3
@@ -119,34 +37,25 @@ namespace Loop
          -> GameLoop b state1 state3
     Exit : GameLoop () state NotRunning
 
-gameLoop : GameLoop () (Running number) NotRunning
-gameLoop {number} = do
+gameLoop : GameLoop () (Running secret) NotRunning
+gameLoop {secret} = do
   input <- GetInput
   case input of
        Just (InGuess guess) => do
-         case calc (evalGuess guess number) of
-              (4, 0) => do
-                Won
-                Exit
-              (bulls, cows) => do
-                Message (show bulls ++ " bulls, " ++ show cows ++ " cows")
-                gameLoop
+         let result = evalGuess guess secret
+         if (bulls result == 4)
+            then do
+              Won
+              Exit
+            else do
+              Message (show (bulls result) ++ " bulls, " ++ show (cows result) ++ " cows")
+              gameLoop
        Just InAdmit => do
          Admitted
          Exit
        _ => do
          Message "Invalid input"
          gameLoop
-
- where
-
-  calc : Vect 4 DigitState -> (Integer, Integer)
-  calc = foldl f (0,0) . toList
-   where
-    f : (Integer, Integer) -> DigitState -> (Integer, Integer)
-    f (b, c) Bull = (b + 1, c)
-    f (b, c) Cow = (b, c + 1)
-    f (b, c) Miss = (b, c)
 
 data GameResult : (ty : Type) -> GameState -> Type where
   OK : (res : ty) -> GameResult ty outstate
@@ -169,20 +78,20 @@ random : Int -> Int
 random seed = (1664525 * seed + 1013904223) `shiftR` 2
 
 partial -- todo
-initNumber : IO Number
-initNumber = do
+initSecret : IO SecretNumber
+initSecret = do
   timestamp <- time
   let combs = combinations 4 [D0,D1,D2,D3,D4,D5,D6,D7,D8,D9]
   let idx = fromIntegerNat (timestamp `mod` (toIntegerNat (length combs)))
   case index' idx combs of
-       Just number => pure $ MkNum number
+       Just secret => pure $ MkNum secret
        Nothing => pure $ MkNum [D1,D2,D3,D4]
 
 data Fuel = Dry | More (Lazy Fuel)
 
 runCmd : GameCmd ty prev_state next_state -> IO ty
 runCmd Won = putStrLn "Correct, you win!"
-runCmd Admitted {prev_state = Running number} = putStrLn ("The number was " ++ show number)
+runCmd Admitted {prev_state = Running secret} = putStrLn ("The secret number was " ++ show secret)
 runCmd GetInput = do putStr "> "
                      x <- getLine
                      pure $ strToInput x
@@ -204,7 +113,7 @@ forever = More forever
 
 partial
 main : IO ()
-main = do n <- initNumber
-          run forever (do Message "Try to guess the number. \"guess <num>\" to guess, \"admit\" to admit."
-                          gameLoop {number = n})
+main = do n <- initSecret
+          run forever (do Message "Try to guess the secret number. \"guess <num>\" to guess, \"admit\" to admit."
+                          gameLoop {secret = n})
           pure ()
