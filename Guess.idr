@@ -1,6 +1,7 @@
 module Guess
 
 import Data.Vect
+import Data.So
 
 import Digit
 import Number
@@ -30,7 +31,7 @@ record GuessResult where
   bulls, cows : Integer
 
 evalGuess : GuessNumber -> SecretNumber -> GuessResult
-evalGuess (MkNum guess) (MkNum actual) = eval (map evalEach zip')
+evalGuess (MkNum (guess ** _)) (MkNum (actual ** _)) = eval (map evalEach zip')
   where
     evalEach : (Digit, Digit, Vect 4 Digit) -> DigitState
     evalEach (d1, d2, all) =

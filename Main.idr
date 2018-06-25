@@ -76,8 +76,10 @@ initSecret = do
   let combs = combinations 4 [D0,D1,D2,D3,D4,D5,D6,D7,D8,D9]
   let idx = fromIntegerNat (timestamp `mod` (toIntegerNat (length combs)))
   case index' idx combs of
-       Just secret => pure $ MkNum secret
-       Nothing => pure $ MkNum [D1,D2,D3,D4]
+       Just secret => case choose (allUnique secret) of
+                           Left p => pure $ MkNum (secret ** p)
+                           Right => ?wat
+       Nothing => ?wat
 
 data Fuel = Dry | More (Lazy Fuel)
 

@@ -1,6 +1,7 @@
 module Parse
 
 import Data.Vect
+import Data.So
 import Effects
 import Effect.Exception
 
@@ -16,13 +17,11 @@ parseNumber : String -> Eff Number [EXCEPTION NumberError]
 parseNumber str =
   if all isDigit (unpack str)
      then case catMaybes $ map fromChar $ unpack str of
-               num@[d1,d2,d3,d4] => if allUnique [d1,d2,d3,d4]
-                                       then pure (MkNum num)
-                                       else raise HasDuplicates
+               num@[_,_,_,_] => let v = the (Vect 4 Digit) num
+                                in case choose (allUnique v) of
+                                        Left p => pure (MkNum (v ** p))
+                                        Right => raise HasDuplicates
                xs => if length xs < 4
                         then raise TooFewDigits
                         else raise TooManyDigits
      else raise NotANumber
-    where
-      allUnique : Eq a => List a -> Bool
-      allUnique xs = length (nub xs) == length xs
