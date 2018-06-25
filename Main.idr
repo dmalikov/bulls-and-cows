@@ -1,21 +1,15 @@
 import Data.Vect
+import Effects
+import Effect.Exception
 import System
 
 import Digit
-import Number
 import Guess
+import Input
+import Number
+import Parse
 
 %default total
-
-data Input = InGuess GuessNumber
-           | InAdmit
-
-strToInput : String -> Maybe Input
-strToInput str =
-  case words str of
-       "admit" :: _ => Just InAdmit
-       "guess" :: num :: Nil => map InGuess (fromStr num)
-       _ => Nothing
 
 data GameState : Type where
   NotRunning : GameState
@@ -53,9 +47,7 @@ gameLoop {secret} = do
        Just InAdmit => do
          Admitted
          Exit
-       _ => do
-         Message "Invalid input"
-         gameLoop
+       _ => gameLoop
 
 data GameResult : (ty : Type) -> GameState -> Type where
   OK : (res : ty) -> GameResult ty outstate
@@ -92,9 +84,16 @@ data Fuel = Dry | More (Lazy Fuel)
 runCmd : GameCmd ty prev_state next_state -> IO ty
 runCmd Won = putStrLn "Correct, you win!"
 runCmd Admitted {prev_state = Running secret} = putStrLn ("The secret number was " ++ show secret)
-runCmd GetInput = do putStr "> "
-                     x <- getLine
-                     pure $ strToInput x
+runCmd GetInput = do
+  putStr "> "
+  x <- getLine
+  case the (Either InputError Input) (run (parseInput x)) of
+       Left (UnsupportedCommand str) => do putStrLn ("Unsupported command: '" ++ str ++ "'"); pure Nothing
+       Left (MalformedGuess NotANumber) => do putStrLn "Invalid input: not a number"; pure Nothing
+       Left (MalformedGuess TooFewDigits) => do putStrLn "Invalid input: too few digits"; pure Nothing
+       Left (MalformedGuess TooManyDigits) => do putStrLn "Invalid input: too many digits"; pure Nothing
+       Left (MalformedGuess HasDuplicates) => do putStrLn "Invalid input: number cannot have duplicate gidits"; pure Nothing
+       Right input => pure (Just input)
 runCmd (Message message) = putStrLn message
 runCmd (Pure res) = pure res
 runCmd (x >>= f) = do y <- runCmd x

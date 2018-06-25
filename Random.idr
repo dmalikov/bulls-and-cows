@@ -1,0 +1,3 @@
+module Random
+
+import Effects
