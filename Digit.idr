@@ -1,6 +1,7 @@
 module Digit
 
 import Data.String.Views
+import Data.Vect
 
 %access public export
 %default total
@@ -51,3 +52,6 @@ Show Digit where
   show D7 = "7"
   show D8 = "8"
   show D9 = "9"
+
+digits : Vect 10 Digit
+digits = [D0,D1,D2,D3,D4,D5,D6,D7,D8,D9]

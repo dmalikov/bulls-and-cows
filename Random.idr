@@ -30,20 +30,28 @@ maybeToList : Maybe a -> List a
 maybeToList (Just a) = [a]
 maybeToList Nothing = []
 
-data SecretInitError = SystemError | DuplicateDigitsGenerated
+data SecretInitError = DuplicateDigitsGenerated
+
+partial
+rand4Digits : Eff (Vect 4 Digit) [SYSTEM, RND]
+rand4Digits = do
+  srand !time
+  (el1, l1) <- f digits
+  (el2, l2) <- f l1
+  (el3, l3) <- f l2
+  (el4, _ ) <- f l3
+  pure [el1, el2, el3, el4]
+ where
+  partial
+  f : Vect (S k) Digit -> Eff (Digit, Vect k Digit) [RND]
+  f {k} xs = do
+    ix <- rndFin k
+    pure (index ix xs, deleteAt ix xs)
 
 partial
 initSecret : IO (Either SecretInitError SecretNumber)
 initSecret = do
-  el <- the (IO (Maybe (Vect 4 Digit))) (run randVect4)
-  case el of
-       Nothing => pure (Left SystemError)
-       Just el => case choose (allUnique el) of
-                       Left p => pure (Right (MkNum (el ** p)))
-                       Right _ => pure (Left DuplicateDigitsGenerated)
- where
-  partial
-  randVect4 : Eff (Maybe (Vect 4 Digit)) [SYSTEM, RND]
-  randVect4 = do
-    srand !time
-    rndSelect (combinations 4 [D0,D1,D2,D3,D4,D5,D6,D7,D8,D9])
+  number <- run rand4Digits
+  case choose (allUnique number) of
+       Left p => pure (Right (MkNum (number ** p)))
+       Right _ => pure (Left DuplicateDigitsGenerated)

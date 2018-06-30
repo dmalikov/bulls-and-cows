@@ -90,8 +90,6 @@ main : IO ()
 main = do
   secret <- initSecret
   case secret of
-       Left SystemError =>
-         putStrLn "This shouldn't happen, system error"
        Left DuplicateDigitsGenerated =>
          putStrLn "This shouldn't happen, duplicate digits generated, exiting"
        Right n => do
