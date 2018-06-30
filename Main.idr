@@ -14,13 +14,13 @@ import Random
 
 data GameState : Type where
   NotRunning : GameState
-  Running : SecretNumber -> GameState
+  Running : SecretNumber -> (startTime : Integer) -> GameState
 
 data GameCmd : (ty : Type) -> (prev_state : GameState) -> (new_state : GameState) -> Type where
-  Won : GameCmd () (Running secret) NotRunning
-  Admitted : GameCmd () (Running secret) NotRunning
+  Won : GameCmd () (Running s t) NotRunning
+  Admitted : GameCmd () (Running s t) NotRunning
   Message : String -> GameCmd () state state
-  GetInput : GameCmd (Maybe Input) (Running secret) (Running secret)
+  GetInput : GameCmd (Maybe Input) (Running s t) (Running s t)
 
   Pure : (res : ty) -> GameCmd ty state state
   (>>=) : GameCmd a state1 state2 -> (a -> GameCmd b state2 state3) -> GameCmd b state1 state3
@@ -32,8 +32,8 @@ namespace Loop
          -> GameLoop b state1 state3
     Exit : GameLoop () state NotRunning
 
-gameLoop : GameLoop () (Running secret) NotRunning
-gameLoop {secret} = do
+gameLoop : GameLoop () (Running secret startTime) NotRunning
+gameLoop {secret} {startTime} = do
   input <- GetInput
   case input of
        Just (InGuess guess) => do
@@ -57,8 +57,12 @@ data GameResult : (ty : Type) -> GameState -> Type where
 data Fuel = Dry | More (Lazy Fuel)
 
 runCmd : GameCmd ty prev_state next_state -> IO ty
-runCmd Won = putStrLn "Correct, you win!"
-runCmd Admitted {prev_state = Running secret} = putStrLn ("The secret number was " ++ show secret)
+runCmd Won {prev_state = Running secret startTime} = do
+  curTime <- time
+  putStrLn $ "Correct! It took " ++ show (curTime - startTime) ++ " sec."
+runCmd Admitted {prev_state = Running secret startTime} = do
+  curTime <- time
+  putStrLn $ "The secret number was " ++ show secret ++ ". Admitted after " ++ show (curTime - startTime) ++ " sec."
 runCmd GetInput = do
   putStr "> "
   x <- getLine
@@ -93,6 +97,7 @@ main = do
        Left DuplicateDigitsGenerated =>
          putStrLn "This shouldn't happen, duplicate digits generated, exiting"
        Right n => do
-          run forever (do Message "Try to guess the secret number. \"guess <num>\" to guess, \"admit\" to admit."
-                          gameLoop {secret = n})
-          pure ()
+         startTime <- time
+         run forever (do Message "Try to guess the secret number. \"guess <num>\" to guess, \"admit\" to admit."
+                         gameLoop {secret = n} {startTime = startTime})
+         pure ()
