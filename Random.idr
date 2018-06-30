@@ -14,29 +14,13 @@ import Number
 %default total
 %access public export
 
-combinations : (n : Nat) -> List a -> List (Vect n a)
-combinations n = catMaybes . map (f n) . c n
-  where
-    f : (n : Nat) -> (xs : List a) -> Maybe (Vect n a)
-    f n xs with (decEq (length xs) n)
-      | (Yes prf) = rewrite (sym prf) in Just (fromList xs)
-      | (No _) = Nothing
-    c : Nat -> List a -> List (List a)
-    c Z _ = [[]]
-    c _ [] = [[]]
-    c (S k) (x :: xs) = map (x ::) (c k xs) ++ c (S k) xs
-
-maybeToList : Maybe a -> List a
-maybeToList (Just a) = [a]
-maybeToList Nothing = []
-
 data SecretInitError = DuplicateDigitsGenerated
 
 partial
 rand4Digits : Eff (Vect 4 Digit) [SYSTEM, RND]
 rand4Digits = do
   srand !time
-  (el1, l1) <- f digits
+  (el1, l1) <- f [D9,D0,D8,D1,D7,D2,D6,D3,D5,D4]
   (el2, l2) <- f l1
   (el3, l3) <- f l2
   (el4, _ ) <- f l3

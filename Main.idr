@@ -100,6 +100,6 @@ main = do
          putStrLn "This shouldn't happen, duplicate digits generated, exiting"
        Right n => do
          startTime <- time
-         run forever (do Message "Try to guess the secret number. \"guess <num>\" to guess, \"admit\" to admit."
+         run forever (do Message "Try to guess the secret number. Type 'q' to exit."
                          gameLoop {secret = n} {startTime = startTime} {attCnt = Z})
          pure ()

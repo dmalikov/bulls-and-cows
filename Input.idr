@@ -18,7 +18,7 @@ data InputError = UnsupportedCommand String | MalformedGuess NumberError
 parseInput : String -> Eff Input [EXCEPTION InputError]
 parseInput str =
   case words str of
-       "admit" :: _ => pure InAdmit
+       "q" :: _ => pure InAdmit
        num :: _ => case the (Either NumberError Number) (run (parseNumber num)) of
                         Left e => raise (MalformedGuess e)
                         Right n => pure (InGuess n)
