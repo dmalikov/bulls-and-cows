@@ -1,0 +1,8 @@
+package bulls-and-cows
+
+modules = Main
+
+sourcedir = src
+pkgs = effects
+executable = bnc
+main = Main
