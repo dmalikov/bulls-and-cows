@@ -8,6 +8,7 @@ import Guess
 import Input
 import Number
 import Parse
+import Random
 
 %default total
 
@@ -53,34 +54,6 @@ data GameResult : (ty : Type) -> GameState -> Type where
   OK : (res : ty) -> GameResult ty outstate
   OutOfFuel : GameResult ty outstate
 
-namespace Combinations
-  combinations : (n : Nat) -> List a -> List (Vect n a)
-  combinations n = catMaybes . map (f n) . c n
-    where
-      f : (n : Nat) -> (xs : List a) -> Maybe (Vect n a)
-      f n xs with (decEq (length xs) n)
-        | (Yes prf) = rewrite (sym prf) in Just (fromList xs)
-        | (No _) = Nothing
-      c : Nat -> List a -> List (List a)
-      c Z _ = [[]]
-      c _ [] = [[]]
-      c (S k) (x :: xs) = map (x ::) (c k xs) ++ c (S k) xs
-
-random : Int -> Int
-random seed = (1664525 * seed + 1013904223) `shiftR` 2
-
-partial -- todo
-initSecret : IO SecretNumber
-initSecret = do
-  timestamp <- time
-  let combs = combinations 4 [D0,D1,D2,D3,D4,D5,D6,D7,D8,D9]
-  let idx = fromIntegerNat (timestamp `mod` (toIntegerNat (length combs)))
-  case index' idx combs of
-       Just secret => case choose (allUnique secret) of
-                           Left p => pure $ MkNum (secret ** p)
-                           Right => ?wat
-       Nothing => ?wat
-
 data Fuel = Dry | More (Lazy Fuel)
 
 runCmd : GameCmd ty prev_state next_state -> IO ty
@@ -114,7 +87,14 @@ forever = More forever
 
 partial
 main : IO ()
-main = do n <- initSecret
+main = do
+  secret <- initSecret
+  case secret of
+       Left SystemError =>
+         putStrLn "This shouldn't happen, system error"
+       Left DuplicateDigitsGenerated =>
+         putStrLn "This shouldn't happen, duplicate digits generated, exiting"
+       Right n => do
           run forever (do Message "Try to guess the secret number. \"guess <num>\" to guess, \"admit\" to admit."
                           gameLoop {secret = n})
           pure ()
